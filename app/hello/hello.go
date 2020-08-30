@@ -1,6 +1,7 @@
 package hello
 
 import (
+	"log"
 	"go.mongodb.org/mongo-driver/bson"
 	"context"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -9,8 +10,8 @@ import (
 )
 
 type Person struct {
-	Name 	string
-	Age		int
+	Name 	string 	`json:"name"`
+	Age		int			`json:"age"`
 }
 
 func GetProfile(w http.ResponseWriter, r *http.Request) {
@@ -50,4 +51,40 @@ func GetDB(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)
+}
+
+func GetAllData(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
+	cursor, err := db.Collection("test").Find(context.TODO(), bson.M{})
+	if err != nil {
+		w.Write([]byte("find value failed!"))
+		return
+	}
+
+	var arrPerson []Person
+	for cursor.Next(context.TODO()) {
+		var elem Person
+		err := cursor.Decode(&elem)
+		if err != nil {
+			log.Fatal(err)
+			w.Write([]byte("get document failed!"))
+			return
+		}
+
+		arrPerson = append(arrPerson, elem)
+	}
+
+	if cursor.Err() != nil {
+		w.Write([]byte("Get document failed!"))
+		return
+	}
+
+	cursor.Close(context.TODO())
+	jsArr, err := json.Marshal(arrPerson)
+	if err != nil {
+		w.Write([]byte("parse json failed!"))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsArr)
 }

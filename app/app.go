@@ -43,6 +43,7 @@ func (app *App) Initialize() {
 func (app *App) setRouter() {
 	app.Router.HandleFunc("/", hello.GetProfile).Methods("GET")
 	app.Router.HandleFunc("/get", app.handleRequest(hello.GetDB)).Methods("GET")
+	app.Router.HandleFunc("/get-all", app.handleRequest(hello.GetAllData)).Methods("GET")
 }
 
 type RequestHandlerFunc func(db *mongo.Database, w http.ResponseWriter, r *http.Request)
