@@ -1,6 +1,7 @@
 package app
 
 import (
+	"rank-server-pikachu/app/controllers"
 	"github.com/gorilla/mux"
 	"rank-server-pikachu/app/hello"
 	"context"
@@ -44,11 +45,16 @@ func (app *App) setRouter() {
 	app.Router.HandleFunc("/", hello.GetProfile).Methods("GET")
 	app.Router.HandleFunc("/get", app.handleRequest(hello.GetDB)).Methods("GET")
 	app.Router.HandleFunc("/get-all", app.handleRequest(hello.GetAllData)).Methods("GET")
+
+	//route user
+	app.Router.HandleFunc(config.PathAPI + "/user/init", app.handleRequest(controllers.InitUser)).Methods("POST")
+	app.Router.HandleFunc(config.PathAPI + "/user/update-score", app.handleRequest(controllers.UpdateScoreUser)).Methods("POST")
 }
 
 type RequestHandlerFunc func(db *mongo.Database, w http.ResponseWriter, r *http.Request)
 func (app *App) handleRequest(handler RequestHandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		handler(app.DB, w, r)
 	}
 }
