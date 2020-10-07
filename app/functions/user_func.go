@@ -1,6 +1,9 @@
 package functions
 
 import (
+	"go.mongodb.org/mongo-driver/bson"
+	"context"
+	"go.mongodb.org/mongo-driver/mongo"
 	// "fmt"
 	"rank-server-pikachu/app/models"
 )
@@ -14,7 +17,7 @@ func UpdateScoreUser(rankUser *models.RankModel, idLv int, time int64, highScore
 			value.Combo			= combo
 			value.BestCombo	= bestCombo
 
-			rankUser.Data = append(rankUser.Data[:index], value)
+			rankUser.Data[index] = value
 			return
 		}
 	}
@@ -27,4 +30,12 @@ func UpdateScoreUser(rankUser *models.RankModel, idLv int, time int64, highScore
 		IDLevel		: idLv,
 	}
 	rankUser.Data = append(rankUser.Data, newLevel)
+}
+
+func ChkUserExist(db *mongo.Database, fbID string) bool {
+	findUser := db.Collection("users").FindOne(context.TODO(), bson.M{ "fb_id": fbID });
+	if findUser.Err() != nil {
+		return false
+	}
+	return true
 }

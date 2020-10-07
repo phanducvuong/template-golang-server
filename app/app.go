@@ -49,6 +49,7 @@ func (app *App) setRouter() {
 	//route user
 	app.Router.HandleFunc(config.PathAPI + "/user/init", app.handleRequest(controllers.InitUser)).Methods("POST")
 	app.Router.HandleFunc(config.PathAPI + "/user/update-score", app.handleRequest(controllers.UpdateScoreUser)).Methods("POST")
+	app.Router.HandleFunc(config.PathAPI + "/user/init-challenge", app.handleRequest(controllers.InitChallenge)).Methods("POST")
 }
 
 type RequestHandlerFunc func(db *mongo.Database, w http.ResponseWriter, r *http.Request)

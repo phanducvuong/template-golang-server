@@ -3,7 +3,8 @@ package controllers
 import (
 	"go.mongodb.org/mongo-driver/bson"
 	"context"
-	// "fmt"
+	"fmt"
+	"time"
 	"encoding/json"
 	"net/http"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -21,6 +22,16 @@ type updateScoreModel struct {
 	IDLevel		int								`json:"id_level"`
 }
 
+type challengeBody struct {
+	FBIdA				string						`json:"fb_id_a"`
+	FBIdB				string						`json:"fb_id_b"`
+	ModeScene		int32							`json:"mode_scene"`
+	NumOfItem		int32							`json:"num_of_item"`
+	Row					int16							`json:"row"`
+	Col					int16							`json:"col"`
+	DataBoard		string						`json:"data_board"`
+}
+
 func InitUser(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
 	var userModel models.UserModel
 	err := json.NewDecoder(r.Body).Decode(&userModel)
@@ -30,8 +41,7 @@ func InitUser(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	findUser := db.Collection("users").FindOne(context.TODO(), bson.M{"fb_id": userModel.FBId})
-	if findUser.Err() != nil {
+	if !functions.ChkUserExist(db, userModel.FBId) {
 		rankModel	:= models.RankModel {
 			FBId			: userModel.FBId,
 			Name			: userModel.Name,
@@ -44,17 +54,20 @@ func InitUser(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
 			w.Write(errorInsert)
 			return
 		}
+
+		w.Write(util.ResponseUtil(2000, "success"))
+		return
 	}
 
-	w.Write(util.ResponseUtil(2000, "success"))
+	w.Write(util.ResponseUtil(3000, "User is exist!"))
 }
 
 func UpdateScoreUser(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
 	var updateScoreModel updateScoreModel
+
 	err := json.NewDecoder(r.Body).Decode(&updateScoreModel)
 	if err != nil || updateScoreModel.FBId == "" {
 		errorRes 	:= util.ResponseUtil(3000, "can not update score")
-
 		w.Write(errorRes)
 		return
 	}
@@ -86,5 +99,12 @@ func UpdateScoreUser(db *mongo.Database, w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Write(util.ResponseUtil(2000, "update score success!"))
+}
 
+func InitChallenge(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
+	timee := time.Now().UnixNano() / 1e6
+	fmt.Printf("%d\n", timee)
+	fmt.Printf("%s\n", time.Now())
+
+	w.Write(util.ResponseUtil(2000, "ccc"))
 }
