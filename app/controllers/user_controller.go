@@ -23,13 +23,17 @@ type updateScoreModel struct {
 }
 
 type challengeBody struct {
-	FBIdA				string						`json:"fb_id_a"`
-	FBIdB				string						`json:"fb_id_b"`
-	ModeScene		int32							`json:"mode_scene"`
-	NumOfItem		int32							`json:"num_of_item"`
-	Row					int16							`json:"row"`
-	Col					int16							`json:"col"`
-	DataBoard		string						`json:"data_board"`
+	FBIdA							string									`json:"fb_id_a"`
+	FBIdB							string									`json:"fb_id_b"`
+	ModeScene					*int										`json:"mode_scene"`
+	NumOfItem					*int										`json:"num_of_item"`
+	Row								*int									`json:"row"`
+	Col								*int									`json:"col"`
+	DataBoard					string									`json:"data_board"`
+	Time							*int64									`json:"time"`
+	HighScore					*int64									`json:"high_score"`
+	Combo							*int										`json:"combo"`
+	BestCombo					*int										`json:"best_combo"`
 }
 
 func InitUser(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
@@ -102,9 +106,65 @@ func UpdateScoreUser(db *mongo.Database, w http.ResponseWriter, r *http.Request)
 }
 
 func InitChallenge(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
-	timee := time.Now().UnixNano() / 1e6
-	fmt.Printf("%d\n", timee)
-	fmt.Printf("%s\n", time.Now())
+	var challengeBody challengeBody
+	err := json.NewDecoder(r.Body).Decode(&challengeBody)
+	if err != nil ||
+		challengeBody.FBIdA 		== "" 	|| challengeBody.FBIdB 			== "" 	|| challengeBody.DataBoard 	== "" 	||
+		challengeBody.ModeScene == nil 	|| challengeBody.NumOfItem 	== nil 	|| challengeBody.Row				== nil 	|| challengeBody.Col 				== nil ||
+		challengeBody.Time			== nil	|| challengeBody.HighScore	== nil	|| challengeBody.Combo			== nil	|| challengeBody.BestCombo	== nil {
 
-	w.Write(util.ResponseUtil(2000, "ccc"))
+			w.Write(util.ResponseUtil(3000, "Check info challenge!"))
+			return
+
+	}
+
+	chkUserExist, dataUser := functions.FindUserByFBId(db, challengeBody.FBIdB)
+	if !functions.ChkUserExist(db, challengeBody.FBIdA) || !chkUserExist {
+		w.Write(util.ResponseUtil(3000, "FBId User Not Exist!"))
+		return
+	}
+
+	timee 				:= time.Now().UnixNano() / 1e6
+	keyChallenge 	:= fmt.Sprintf("%s_%s_%d", challengeBody.FBIdA, challengeBody.FBIdB, timee)
+	dataChallenge := models.ChallengeModel {
+		FBIdChallenger			: challengeBody.FBIdA,
+		FBIdChallenged			: challengeBody.FBIdB,
+		KeyChallenge				: keyChallenge,
+		ModeScene						: *challengeBody.ModeScene,
+		NumberItem					: *challengeBody.NumOfItem,
+		Board								: models.BoardModel {
+			Row								: *challengeBody.Row,
+			Col								: *challengeBody.Col,
+			Data							: challengeBody.DataBoard,
+		},
+		ResultChallenger		: models.ResultChallenge {
+			Time							: *challengeBody.Time,
+			HighScore					: *challengeBody.HighScore,
+			Combo							: *challengeBody.Combo,
+			BestCombo					: *challengeBody.BestCombo,
+		},
+		ResultChallenged		: models.ResultChallenge {
+			Time							: 0,
+			HighScore					: 0,
+			Combo							: 0,
+			BestCombo					: 0,
+		},
+	}
+
+	//update NotiChallenge user challenged
+	dataUser.NotiChallenge 	 = append(dataUser.NotiChallenge, keyChallenge)
+	filter 									:= bson.M{"fb_id": bson.M{"$eq": challengeBody.FBIdB}}
+	update									:= bson.M{"$set": bson.M{"noti_challenge": dataUser.NotiChallenge}}
+	_, err = db.Collection("users").UpdateOne(context.TODO(), filter, update)
+	if err != nil {
+		w.Write(util.ResponseUtil(3000, "Update UserModel Failed!"))
+		return
+	}
+
+	resultInsert := functions.InitChallenge(db, dataChallenge)
+	if !resultInsert {
+		w.Write(util.ResponseUtil(3000, "Init Challenge Failed!"))
+		return
+	}
+	w.Write(util.ResponseUtil(2000, "Success!"))
 }

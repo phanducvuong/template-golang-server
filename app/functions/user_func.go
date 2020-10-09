@@ -39,3 +39,21 @@ func ChkUserExist(db *mongo.Database, fbID string) bool {
 	}
 	return true
 }
+
+func FindUserByFBId(db *mongo.Database, fbID string) (bool, models.UserModel) {
+	findUser := db.Collection("users").FindOne(context.TODO(), bson.M{ "fb_id": fbID });
+	if findUser.Err() != nil {
+		return false, models.UserModel{}
+	}
+	var userModel models.UserModel
+	findUser.Decode(&userModel)
+	return true, userModel
+}
+
+func InitChallenge(db *mongo.Database, data models.ChallengeModel) bool {
+	_, errInsert := db.Collection("challenges").InsertOne(context.TODO(), data)
+	if errInsert != nil {
+		return false
+	}
+	return true
+}
