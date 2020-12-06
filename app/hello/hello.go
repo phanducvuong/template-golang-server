@@ -1,6 +1,7 @@
 package hello
 
 import (
+	"fmt"
 	"log"
 	"go.mongodb.org/mongo-driver/bson"
 	"context"
@@ -11,12 +12,13 @@ import (
 
 type Person struct {
 	Name 	string 	`json:"name"`
-	Age		int			`json:"age"`
+	Age		int64		`json:"age"`
+	Ls		[]int		`json:"ls"`
 }
 
 func GetProfile(w http.ResponseWriter, r *http.Request) {
 
-	person := Person{"Alex", 13}
+	person := Person{"Alex", 13, []int{1,2,3}}
 	js, err := json.Marshal(person)
 	if err != nil {
 		w.Write([]byte("can't not send profile"))
@@ -51,6 +53,19 @@ func GetDB(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)
+}
+
+func TestPostData(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
+	var p Person
+	err := json.NewDecoder(r.Body).Decode(&p)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(p.Name)
+	fmt.Println(p.Age)
+	fmt.Println(p.Ls)
+
+	w.Write([]byte("ok"))
 }
 
 func GetAllData(db *mongo.Database, w http.ResponseWriter, r *http.Request) {

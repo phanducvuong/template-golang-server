@@ -8,7 +8,12 @@ import (
 	"rank-server-pikachu/app/models"
 )
 
-func UpdateScoreUser(rankUser *models.RankModel, idLv int, time int64, highScore int64, combo int, bestCombo int) {	
+type Leaderboard struct {
+	Name			string			`json:"name"`
+	Score			int64				`json:"score"`
+}
+
+func UpdateScoreUser(rankUser *models.RankModel, idLv int, time int64, highScore int64, combo int, bestCombo int) {
 	for index, value := range rankUser.Data {
 		if value.IDLevel == idLv {
 			
@@ -56,4 +61,23 @@ func InitChallenge(db *mongo.Database, data models.ChallengeModel) bool {
 		return false
 	}
 	return true
+}
+
+func GetLeaderboard(data models.RankModel, idLevel int) Leaderboard {
+	var tmp Leaderboard
+	v := findLevel(data.Data, idLevel)
+	if v != nil {
+		tmp.Name 	= data.Name
+		tmp.Score = v.HighScore
+	}
+	return tmp
+}
+
+func findLevel(data []models.LevelModel, idLevel int) *models.LevelModel {
+	for _, value := range data {
+		if value.IDLevel == idLevel {
+			return &value
+		}
+	}
+	return nil
 }

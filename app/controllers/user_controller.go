@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"strconv"
 	"go.mongodb.org/mongo-driver/bson"
 	"context"
 	"fmt"
@@ -27,8 +28,8 @@ type challengeBody struct {
 	FBIdB							string									`json:"fb_id_b"`
 	ModeScene					*int										`json:"mode_scene"`
 	NumOfItem					*int										`json:"num_of_item"`
-	Row								*int									`json:"row"`
-	Col								*int									`json:"col"`
+	Row								*int										`json:"row"`
+	Col								*int										`json:"col"`
 	DataBoard					string									`json:"data_board"`
 	Time							*int64									`json:"time"`
 	HighScore					*int64									`json:"high_score"`
@@ -103,6 +104,47 @@ func UpdateScoreUser(db *mongo.Database, w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Write(util.ResponseUtil(2000, "update score success!"))
+}
+
+func GetLeaderboardByLevel(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	level, err := strconv.Atoi(query.Get("level"))
+
+	if err != nil || level < 0 {
+		w.Write(util.ResponseUtil(3000, "Invalid level!"))
+		return
+	}
+
+	cursor, err := db.Collection("ranks").Find(context.TODO(), bson.M{
+		"data": bson.M{
+			"$elemMatch": bson.M{"id_level": level},
+		}})
+	if err != nil {
+		w.Write(util.ResponseUtil(3000, "error"))
+		return
+	}
+
+	var arrRank []functions.Leaderboard
+	for cursor.Next(context.TODO()) {
+		var elem models.RankModel
+		err = cursor.Decode(&elem)
+
+		arrRank = append(arrRank, functions.GetLeaderboard(elem, level))
+	}
+
+	if cursor.Err() != nil {
+		w.Write(util.ResponseUtil(3000, "Get data failed!"))
+		return
+	}
+
+	cursor.Close(context.TODO())
+	jsArr, err := json.Marshal(arrRank)
+	if err != nil {
+		w.Write(util.ResponseUtil(3000, "Parse json failed!"))
+		return
+	}
+
+	w.Write(util.ResponseUtil(2000, string(jsArr)))
 }
 
 func InitChallenge(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
