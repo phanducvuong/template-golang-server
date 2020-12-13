@@ -1,27 +1,28 @@
 package app
 
 import (
-	"rank-server-pikachu/app/controllers"
-	"github.com/gorilla/mux"
-	"rank-server-pikachu/app/hello"
 	"context"
 	"fmt"
 	"log"
 	"net/http"
+	"rank-server-pikachu/app/controllers"
+	"rank-server-pikachu/app/hello"
 	"rank-server-pikachu/config"
+
+	"github.com/gorilla/mux"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type App struct {
-	Router 	*mux.Router
-	DB 			*mongo.Database
+	Router *mux.Router
+	DB     *mongo.Database
 }
 
 func (app *App) Initialize() {
-	clientOption 	:= options.Client().ApplyURI(config.URLMongodb)
-	client, err 	:= mongo.Connect(context.TODO(), clientOption)
+	clientOption := options.Client().ApplyURI(config.URLMongodb)
+	client, err := mongo.Connect(context.TODO(), clientOption)
 
 	if err != nil {
 		log.Fatal(err)
@@ -34,8 +35,8 @@ func (app *App) Initialize() {
 		return
 	}
 
-	app.DB			= client.Database("pikachu-db")
-	app.Router 	= mux.NewRouter()
+	app.DB = client.Database("pikachu-db")
+	app.Router = mux.NewRouter()
 
 	app.setRouter()
 	fmt.Println("Connect mongodb success")
@@ -48,13 +49,15 @@ func (app *App) setRouter() {
 	app.Router.HandleFunc("/libgdx", app.handleRequest(hello.TestPostData)).Methods("POST")
 
 	//route user
-	app.Router.HandleFunc(config.PathAPI + "/user/init", app.handleRequest(controllers.InitUser)).Methods("POST")
-	app.Router.HandleFunc(config.PathAPI + "/user/update-score", app.handleRequest(controllers.UpdateScoreUser)).Methods("POST")
-	app.Router.HandleFunc(config.PathAPI + "/user/init-challenge", app.handleRequest(controllers.InitChallenge)).Methods("POST")
-	app.Router.HandleFunc(config.PathAPI + "/get-leaderboard-by-level", app.handleRequest(controllers.GetLeaderboardByLevel)).Methods("GET")
+	app.Router.HandleFunc(config.PathAPI+"/user/init", app.handleRequest(controllers.InitUser)).Methods("POST")
+	app.Router.HandleFunc(config.PathAPI+"/user/update-score", app.handleRequest(controllers.UpdateScoreUser)).Methods("POST")
+	app.Router.HandleFunc(config.PathAPI+"/user/init-challenge", app.handleRequest(controllers.InitChallenge)).Methods("POST")
+	app.Router.HandleFunc(config.PathAPI+"/get-leaderboard-by-level", app.handleRequest(controllers.GetLeaderboardByLevel)).Methods("GET")
+	app.Router.HandleFunc(config.PathAPI+"/get-top-3", app.handleRequest(controllers.GetLDBTop3)).Methods("GET")
 }
 
 type RequestHandlerFunc func(db *mongo.Database, w http.ResponseWriter, r *http.Request)
+
 func (app *App) handleRequest(handler RequestHandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
