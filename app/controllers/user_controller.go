@@ -16,15 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type updateScoreModel struct {
-	FBId      string `json:"fb_id"`
-	Time      int64  `json:"time"`
-	HighScore int64  `json:"high_score"`
-	Combo     int    `json:"combo"`
-	BestCombo int    `json:"best_combo"`
-	IDLevel   int    `json:"id_level"`
-}
-
 type challengeBody struct {
 	FBIdA     string `json:"fb_id_a"`
 	FBIdB     string `json:"fb_id_b"`
@@ -49,14 +40,8 @@ func InitUser(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !functions.ChkUserExist(db, userModel.FBId) {
-		rankModel := models.RankModel{
-			FBId: userModel.FBId,
-			Name: userModel.Name,
-		}
-
-		_, errInsertRank := db.Collection("ranks").InsertOne(context.TODO(), rankModel)
 		_, errInsertUser := db.Collection("users").InsertOne(context.TODO(), userModel)
-		if errInsertUser != nil || errInsertRank != nil {
+		if errInsertUser != nil {
 			errorInsert := util.ResponseUtil(3000, "can't insert document to db")
 			w.Write(errorInsert)
 			return
@@ -70,68 +55,74 @@ func InitUser(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateScoreUser(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
-	var updateScoreModel updateScoreModel
+	var updateScoreModel models.LevelModel
 
 	err := json.NewDecoder(r.Body).Decode(&updateScoreModel)
-	if err != nil || updateScoreModel.FBId == "" {
-		fmt.Println(err)
-		w.Write(util.ResponseUtil(3000, "can not update score"))
+	if err != nil || updateScoreModel.FbID == "" {
+		w.Write(util.ResponseUtil(3000, "Can't update score!"))
 		return
 	}
 
-	result := db.Collection("ranks").FindOne(context.TODO(), bson.M{"fb_id": updateScoreModel.FBId})
-	if result.Err() != nil {
-		w.Write(util.ResponseUtil(3000, "user not exist "+updateScoreModel.FBId))
+	if !functions.ChkUserExist(db, updateScoreModel.FbID) {
+		w.Write(util.ResponseUtil(3000, "User is not exist!"))
 		return
-	} //user no have data in rankModel
+	} //user is not exist
 
-	rankModel := models.RankModel{}
-	err = result.Decode(&rankModel)
+	if !functions.ChkLevelUserExist(db, updateScoreModel.FbID, updateScoreModel.IDLevel) {
+		_,err := db.Collection("levels").InsertOne(context.TODO(), updateScoreModel);
+		if err != nil {
+			w.Write(util.ResponseUtil(3000, "Update level failed!"))
+			return
+		}
+		w.Write(util.ResponseUtil(2000, "Success!"))
+		return
+	} //level is not exist
+
+	filter 	:= bson.M{"$and": []interface{}{
+		bson.M{"id_level"	: bson.M{"$eq": updateScoreModel.IDLevel}},
+		bson.M{"fb_id"		: bson.M{"$eq": updateScoreModel.FbID}},
+	}}
+	update	:= bson.M{"$set": bson.M{
+		"fb_id": updateScoreModel.FbID,
+		"name": updateScoreModel.Name,
+		"time": updateScoreModel.Time,
+		"high_score": updateScoreModel.HighScore,
+		"combo": updateScoreModel.Combo,
+		"best_combo": updateScoreModel.BestCombo,
+		"id_level": updateScoreModel.IDLevel,
+	}}
+
+	_, err = db.Collection("levels").UpdateOne(context.TODO(), filter, update)
 	if err != nil {
-		errDecode := util.ResponseUtil(3000, "Decode json failed!")
-		w.Write(errDecode)
+		w.Write(util.ResponseUtil(3000, "Update level failed!"))
 		return
 	}
-
-	functions.UpdateScoreUser(&rankModel, updateScoreModel.IDLevel, updateScoreModel.Time,
-		updateScoreModel.HighScore, updateScoreModel.Combo, updateScoreModel.BestCombo)
-
-	filter := bson.M{"fb_id": bson.M{"$eq": updateScoreModel.FBId}}
-	update := bson.M{"$set": bson.M{"data": rankModel.Data}}
-	_, err = db.Collection("ranks").UpdateOne(context.TODO(), filter, update)
-
-	if err != nil {
-		w.Write(util.ResponseUtil(3000, "can not update score user!"))
-		return
-	}
-
-	w.Write(util.ResponseUtil(2000, "update score success!"))
+	w.Write(util.ResponseUtil(2000, "Update score success!"))
 }
 
 func GetLeaderboardByLevel(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	level, err := strconv.Atoi(query.Get("level"))
+	query 			:= r.URL.Query()
+	level, err 	:= strconv.Atoi(query.Get("level"))
 
 	if err != nil || level < 0 {
 		w.Write(util.ResponseUtil(3000, "Invalid level!"))
 		return
 	}
 
-	cursor, err := db.Collection("ranks").Find(context.TODO(), bson.M{
-		"data": bson.M{
-			"$elemMatch": bson.M{"id_level": level},
-		}})
+	filter 	:= bson.M{"id_level": level}
+	ops			:= options.Find().SetSort(bson.M{"high_score": -1}).SetLimit(100)
+	cursor, err := db.Collection("levels").Find(context.TODO(), filter, ops)
 	if err != nil {
 		w.Write(util.ResponseUtil(3000, "error"))
 		return
 	}
 
-	var arrRank []functions.Leaderboard
+	var arrRank []models.LevelModel
 	for cursor.Next(context.TODO()) {
-		var elem models.RankModel
+		var elem models.LevelModel
 		err = cursor.Decode(&elem)
 
-		arrRank = append(arrRank, functions.GetLeaderboard(elem, level))
+		arrRank = append(arrRank, elem)
 	}
 
 	if cursor.Err() != nil {
@@ -152,37 +143,48 @@ func GetLeaderboardByLevel(db *mongo.Database, w http.ResponseWriter, r *http.Re
 func GetLDBTop3(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
 	query 			:= r.URL.Query()
 	level, err 	:= strconv.Atoi(query.Get("level"))
+	fbID				:= query.Get("fb_id")
 
-	if err != nil || level < 0 {
+	if err != nil || fbID == "" || level < 0 {
 		w.Write(util.ResponseUtil(3000, "Invalid level!"))
 		return
 	}
 
-	cursor, err := db.Collection("ranks").Find(context.TODO(), bson.M{
-		"data": bson.M{
-			"$elemMatch": bson.M{"id_level": level},
-		},
-	}, options.Find().SetSort(bson.M{"high_score": -1}).SetLimit(3))
+	filter 			:= bson.M{"id_level": level}
+	opts				:= options.Find().SetSort(bson.M{"high_score": -1}).SetLimit(3)
+	cursor, err := db.Collection("levels").Find(context.TODO(), filter, opts)
+
+	//find high score specific user
+	var userLevel = new(models.LevelModel)
+	filter			 = bson.M{"$and": []interface{}{
+		bson.M{"fb_id": fbID},
+		bson.M{"id_level": level},
+	}}
+	userFind 		:= db.Collection("levels").FindOne(context.TODO(), filter)
+	if userFind.Err() == nil {
+		userFind.Decode(&userLevel)
+	}
 
 	if err != nil {
 		w.Write(util.ResponseUtil(3000, "error"))
 		return
 	}
 
-	var arrRank []functions.Leaderboard
+	// var arrRank []models.LevelModel
+	var arrRank []models.LevelModel
 	for cursor.Next(context.TODO()) {
-		var elem models.RankModel
+		var elem models.LevelModel
 		err = cursor.Decode(&elem)
-
-		arrRank = append(arrRank, functions.GetLeaderboard(elem, level))
+		arrRank = append(arrRank, elem)
 	}
+	arrRank = append(arrRank, *userLevel)
+	defer cursor.Close(context.TODO())
 
 	if cursor.Err() != nil {
 		w.Write(util.ResponseUtil(3000, "Get data failed!"))
 		return
 	}
 
-	cursor.Close(context.TODO())
 	jsArr, err := json.Marshal(arrRank)
 	if err != nil {
 		w.Write(util.ResponseUtil(3000, "Parse json failed!"))
