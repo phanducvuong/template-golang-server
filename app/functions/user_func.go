@@ -46,11 +46,11 @@ func ChkUserExist(db *mongo.Database, fbID string) bool {
 	return true
 }
 
-func ChkLevelUserExist(db *mongo.Database, fbID string, idLv int) bool {
+func ChkLevelUserExist(db *mongo.Database, userID string, idLv int) bool {
 	findUser := db.Collection("levels").FindOne(context.TODO(), bson.M{ "$and": []interface{}{
-		bson.M{"fb_id": fbID},
+		bson.M{"user_id": userID},
 		bson.M{"id_level": idLv},
-	} });
+	}});
 	if findUser.Err() != nil {
 		return false
 	}

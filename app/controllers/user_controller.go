@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -30,17 +31,25 @@ type challengeBody struct {
 	BestCombo *int   `json:"best_combo"`
 }
 
+//flow_1: user vào bxh -> check (!object_id trong sharePre) ? initUser : không làm gì
+//flow_2: user đăng nhập fb -> check (!object_id trong sharePre) ? initUser & lưu fb_id, object_id vào sharePre : cập nhật profile user với fb_id tương ứng
+//flow-3: khi user update score. Nếu user chưa init => init user và update score user by objectID init user
+
+//TODO: create function update profile user (update fb_id)
+
 func InitUser(db *mongo.Database, w http.ResponseWriter, r *http.Request) {
 	var userModel models.UserModel
 	err := json.NewDecoder(r.Body).Decode(&userModel)
-	if err != nil || userModel.FBId == "" || userModel.Name == "" {
+	if err != nil || userModel.Name == "" {
 		errRes := util.ResponseUtil(3000, "can not get body")
 		w.Write(errRes)
 		return
 	}
 
 	if !functions.ChkUserExist(db, userModel.FBId) {
-		_, errInsertUser := db.Collection("users").InsertOne(context.TODO(), userModel)
+		userModel.FBId = "none"
+		result, errInsertUser := db.Collection("users").InsertOne(context.TODO(), userModel)
+		fmt.Println(result.InsertedID.(primitive.ObjectID).Hex())
 		if errInsertUser != nil {
 			errorInsert := util.ResponseUtil(3000, "can't insert document to db")
 			w.Write(errorInsert)
@@ -58,17 +67,12 @@ func UpdateScoreUser(db *mongo.Database, w http.ResponseWriter, r *http.Request)
 	var updateScoreModel models.LevelModel
 
 	err := json.NewDecoder(r.Body).Decode(&updateScoreModel)
-	if err != nil || updateScoreModel.FbID == "" {
+	if err != nil || updateScoreModel.UserID == "" {
 		w.Write(util.ResponseUtil(3000, "Can't update score!"))
 		return
 	}
 
-	if !functions.ChkUserExist(db, updateScoreModel.FbID) {
-		w.Write(util.ResponseUtil(3000, "User is not exist!"))
-		return
-	} //user is not exist
-
-	if !functions.ChkLevelUserExist(db, updateScoreModel.FbID, updateScoreModel.IDLevel) {
+	if !functions.ChkLevelUserExist(db, updateScoreModel.UserID, updateScoreModel.IDLevel) {
 		_,err := db.Collection("levels").InsertOne(context.TODO(), updateScoreModel);
 		if err != nil {
 			w.Write(util.ResponseUtil(3000, "Update level failed!"))
@@ -78,9 +82,9 @@ func UpdateScoreUser(db *mongo.Database, w http.ResponseWriter, r *http.Request)
 		return
 	} //level is not exist
 
-	filter 	:= bson.M{"$and": []interface{}{
+	filter := bson.M{"$and": []interface{}{
 		bson.M{"id_level"	: bson.M{"$eq": updateScoreModel.IDLevel}},
-		bson.M{"fb_id"		: bson.M{"$eq": updateScoreModel.FbID}},
+		bson.M{"user_id"	: bson.M{"$eq": updateScoreModel.UserID}},
 	}}
 	update	:= bson.M{"$set": bson.M{
 		"fb_id": updateScoreModel.FbID,
@@ -89,7 +93,6 @@ func UpdateScoreUser(db *mongo.Database, w http.ResponseWriter, r *http.Request)
 		"high_score": updateScoreModel.HighScore,
 		"combo": updateScoreModel.Combo,
 		"best_combo": updateScoreModel.BestCombo,
-		"id_level": updateScoreModel.IDLevel,
 	}}
 
 	_, err = db.Collection("levels").UpdateOne(context.TODO(), filter, update)

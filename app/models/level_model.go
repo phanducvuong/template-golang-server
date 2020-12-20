@@ -1,6 +1,7 @@
 package models
 
 type LevelModel struct {
+	UserID		string	`json:"user_id" bson:"user_id"`
 	FbID			string	`json:"fb_id" bson:"fb_id"`
 	Name			string	`json:"name"`
 	Time			int64		`json:"time"`
